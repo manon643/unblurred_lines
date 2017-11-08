@@ -40,24 +40,13 @@ Mat cartoonifyImage(Mat srcColor, bool sketchMode, bool evilMode, int debugType)
     Size size = srcColor.size();
     Mat mask = Mat(size, CV_8U);
     Mat edges = Mat(size, CV_8U);
-    if (!evilMode) {
-        // Generate a nice edge mask, similar to a pencil line drawing.
-        Laplacian(srcGray, edges, CV_8U, 5);
-        threshold(edges, mask, 80, 255, THRESH_BINARY_INV);
-        // Mobile cameras usually have lots of noise, so remove small
-        // dots of black noise from the black & white edge mask.
-        removePepperNoise(mask);
-    }
-    else {
-        // Evil mode, making everything look like a scary bad guy.
-        // (Where "srcGray" is the original grayscale image plus a medianBlur of size 7x7).
-        Mat edges2;
-        Scharr(srcGray, edges, CV_8U, 1, 0);
-        Scharr(srcGray, edges2, CV_8U, 1, 0, -1);
-        edges += edges2;
-        threshold(edges, mask, 12, 255, THRESH_BINARY_INV);
-        medianBlur(mask, mask, 3);
-    }
+    // Generate a nice edge mask, similar to a pencil line drawing.
+    Laplacian(srcGray, edges, CV_8U, 5);
+    threshold(edges, mask, 80, 255, THRESH_BINARY_INV);
+    // Mobile cameras usually have lots of noise, so remove small
+    // dots of black noise from the black & white edge mask.
+    removePepperNoise(mask);
+    
     //imshow("edges", edges); waitKey(0);
     //imshow("mask", mask); waitKey(0);
     
@@ -71,15 +60,15 @@ Mat cartoonifyImage(Mat srcColor, bool sketchMode, bool evilMode, int debugType)
     // Do the bilateral filtering at a shrunken scale, since it
     // runs so slowly but doesn't need full resolution for a good effect.
     Size smallSize;
-    smallSize.width = size.width/2;
-    smallSize.height = size.height/2;
+    smallSize.width = size.width/4;
+    smallSize.height = size.height/4;
     Mat smallImg = Mat(smallSize, CV_8UC3);
     resize(srcColor, smallImg, smallSize, 0,0, INTER_LINEAR);
     
     // Perform many iterations of weak bilateral filtering, to enhance the edges
     // while blurring the flat regions, like a cartoon.
     Mat tmp = Mat(smallSize, CV_8UC3);
-    int repetitions = 10;        // Repetitions for strong cartoon effect.
+    int repetitions = 20;        // Repetitions for strong cartoon effect.
     for (int i=0; i<repetitions; i++) {
         int size = 9;           // Filter size. Has a large effect on speed.
         double sigmaColor = 9;  // Filter color strength.
@@ -96,6 +85,9 @@ Mat cartoonifyImage(Mat srcColor, bool sketchMode, bool evilMode, int debugType)
     // Clear the output image to black, so that the cartoon line drawings will be black (ie: not drawn).
     memset((char*)dst.data, 0, dst.step * dst.rows);
     
+    Laplacian(srcGray, edges, CV_8U, 5);
+    threshold(edges, mask, 80, 255, THRESH_BINARY_INV);
+    dilate(mask, mask, Mat());
     // Use the blurry cartoon image, except for the strong edges that we will leave black.
     srcColor.copyTo(dst, mask);
     //imshow("mask", mask);
